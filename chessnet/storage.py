@@ -1,25 +1,25 @@
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass
+from pydantic.dataclasses import dataclass
 from typing import List, Optional
 
 import json
 import os
+import pickle
 
 
 @dataclass
 class Engine:
-    uuid: str
     family: str
     variant: str
     version: str
     parent: Optional[str]
     image: str
 
-    def name(self):
+    def id(self):
         return f"{self.family}#{self.variant}#{self.version}"
 
     def __str__(self):
-        return self.name()
+        return self.id()
 
 
 @dataclass
@@ -76,25 +76,25 @@ class FileStorage(Storage):
     def __init__(self, path):
         self.path = path
         if os.path.exists(path):
-            with open(self.path, 'r+') as f:
-                self.data = json.load(f)
+            with open(self.path, 'rb+') as f:
+                self.data = pickle.load(f)
         else:
             self.data = {"engines": {}, "games": {}}
 
     def list_engines(self) -> List[Engine]:
-        return [Engine(**e) for e in self.data["engines"].values()]
+        return [e for e in self.data["engines"].values()]
 
     def store_engine(self, engine: Engine):
-        if engine.uuid in self.data["engines"]:
-            raise Exception("Engine already exists with UUID: {}", engine.uuid)
+        if engine.id() in self.data["engines"]:
+            raise Exception("Engine already exists with id: {}", engine.id())
 
-        self.data["engines"][engine.uuid] = asdict(engine)
+        self.data["engines"][engine.id()] = engine
         self._flush_to_disk()
 
-    def get_engine(self, uuid: str) -> Engine:
-        if engine.uuid not in self.data["engines"]:
-            raise Exception("No engine with UUID: {}", uuid)
-        return Engine(**self.data["engines"][uuid])
+    def get_engine(self, engine_id: str) -> Engine:
+        if engine_id not in self.data["engines"]:
+            raise Exception("No engine with UUID: {}", engine_id)
+        return self.data["engines"][engine_id]
 
     def delete_engine(self, uuid: str):
         del self.data.engines[uuid]
@@ -104,17 +104,17 @@ class FileStorage(Storage):
         if game.uuid in self.data["games"]:
             raise Exception("Game already exists with UUID: {}", game.uuid)
 
-        self.data["games"][game.uuid] = asdict(game)
+        self.data["games"][game.uuid] = engine
         self._flush_to_disk()
 
     def get_game(self, uuid: str) -> Game:
         if game.uuid not in self.data["games"]:
             raise Exception("No game with UUID: {}", uuid)
-        return Game(**self.data["games"][uuid])
+        return self.data["games"][uuid]
 
     def games_for_engine(self, uuid: str) -> List[Game]:
-        return [Game(**g) for g in self.data["games"] if g.white == uuid or g.black == uuid]
+        return [g for g in self.data["games"] if g.white == uuid or g.black == uuid]
 
     def _flush_to_disk(self):
-        with open(self.path, 'w') as f:
-            json.dump(self.data, f)
+        with open(self.path, 'wb') as f:
+            pickle.dump(self.data, f)
