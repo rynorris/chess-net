@@ -31,6 +31,7 @@ class Move:
 @dataclass
 class Game:
     uuid: str
+    timestamp: int  # Seconds since epoch
     white: str  # Engine UUID
     black: str  # Engine UUID
     moves: List[Move]
