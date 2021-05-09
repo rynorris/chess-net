@@ -59,6 +59,10 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def list_games(self) -> List[Game]:
+        raise NotImplementedError()
+
+    @abstractmethod
     def store_game(self, game: Game):
         raise NotImplementedError()
 
@@ -81,7 +85,7 @@ class FileStorage(Storage):
             self.data = {"engines": {}, "games": {}}
 
     def list_engines(self) -> List[Engine]:
-        return [e for e in self.data["engines"].values()]
+        return list(self.data["engines"].values())
 
     def store_engine(self, engine: Engine):
         if engine.id() in self.data["engines"]:
@@ -99,11 +103,14 @@ class FileStorage(Storage):
         del self.data.engines[uuid]
         self._flush_to_disk()
 
+    def list_games(self) -> List[Game]:
+        return list(self.data["games"].values())
+
     def store_game(self, game: Game):
         if game.uuid in self.data["games"]:
             raise Exception("Game already exists with UUID: {}", game.uuid)
 
-        self.data["games"][game.uuid] = engine
+        self.data["games"][game.uuid] = game
         self._flush_to_disk()
 
     def get_game(self, uuid: str) -> Game:
@@ -111,8 +118,8 @@ class FileStorage(Storage):
             raise Exception("No game with UUID: {}", uuid)
         return self.data["games"][uuid]
 
-    def games_for_engine(self, uuid: str) -> List[Game]:
-        return [g for g in self.data["games"] if g.white == uuid or g.black == uuid]
+    def games_for_engine(self, engine_id: str) -> List[Game]:
+        return [g for g in self.data["games"] if g.white == engine_id or g.black == engine_id]
 
     def _flush_to_disk(self):
         with open(self.path, 'wb') as f:
