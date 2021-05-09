@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import List, Optional
 
 import json
+import os
 
 
 @dataclass
@@ -13,6 +14,12 @@ class Engine:
     version: str
     parent: Optional[str]
     image: str
+
+    def name(self):
+        return f"{self.family}#{self.variant}#{self.version}"
+
+    def __str__(self):
+        return self.name()
 
 
 @dataclass
@@ -67,42 +74,45 @@ class Storage(ABC):
 class FileStorage(Storage):
     def __init__(self, path):
         self.path = path
-        with open(self.path) as f:
-            self.data = json.load(f)
+        if os.path.exists(path):
+            with open(self.path, 'r+') as f:
+                self.data = json.load(f)
+        else:
+            self.data = {"engines": {}, "games": {}}
 
     def list_engines(self) -> List[Engine]:
-        return self.data.engines.values()
+        return [Engine(**e) for e in self.data["engines"].values()]
 
     def store_engine(self, engine: Engine):
-        if engine.uuid in self.data.engines:
+        if engine.uuid in self.data["engines"]:
             raise Exception("Engine already exists with UUID: {}", engine.uuid)
 
-        self.data.engines[engine.uuid] = engine
+        self.data["engines"][engine.uuid] = asdict(engine)
         self._flush_to_disk()
 
     def get_engine(self, uuid: str) -> Engine:
-        if engine.uuid not in self.data.engines:
+        if engine.uuid not in self.data["engines"]:
             raise Exception("No engine with UUID: {}", uuid)
-        return self.data.engines[uuid]
+        return Engine(**self.data["engines"][uuid])
 
     def delete_engine(self, uuid: str):
         del self.data.engines[uuid]
         self._flush_to_disk()
 
     def store_game(self, game: Game):
-        if game.uuid in self.data.games:
+        if game.uuid in self.data["games"]:
             raise Exception("Game already exists with UUID: {}", game.uuid)
 
-        self.data.games[game.uuid] = game
+        self.data["games"][game.uuid] = asdict(game)
         self._flush_to_disk()
 
     def get_game(self, uuid: str) -> Game:
-        if game.uuid not in self.data.games:
+        if game.uuid not in self.data["games"]:
             raise Exception("No game with UUID: {}", uuid)
-        return self.data.games[uuid]
+        return Game(**self.data["games"][uuid])
 
     def games_for_engine(self, uuid: str) -> List[Game]:
-        return [g for g in self.data.games if g.white == uuid or g.black == uuid]
+        return [Game(**g) for g in self.data["games"] if g.white == uuid or g.black == uuid]
 
     def _flush_to_disk(self):
         with open(self.path, 'w') as f:

@@ -103,7 +103,7 @@ async def play_game(white: Engine, black: Engine) -> chess.Outcome:
         print(board)
         while True:
             print("Requesting white move...")
-            res = await white_runner.play(board, chess.engine.Limit(time=1))
+            res = await white_runner.play(board, chess.engine.Limit(time=0.1))
             print(f"Got move: {res.move}")
 
             board.push(res.move)
@@ -115,7 +115,7 @@ async def play_game(white: Engine, black: Engine) -> chess.Outcome:
                 break
 
             print("Requesting black move...")
-            res = await black_runner.play(board, chess.engine.Limit(time=1))
+            res = await black_runner.play(board, chess.engine.Limit(time=0.1))
             print(f"Got move: {res.move}")
 
             board.push(res.move)
@@ -131,15 +131,4 @@ async def play_game(white: Engine, black: Engine) -> chess.Outcome:
 
     return board.outcome()
 
-
-async def main():
-    outcome = await play_game(
-        Engine("a", "stockfish", "master", "11", None, "andrijdavid/stockfish:11"),
-        Engine("b", "stockfish", "master", "12", "a", "andrijdavid/stockfish:12"),
-    )
-
-
-if __name__ == "__main__":
-    asyncio.set_event_loop_policy(chess.engine.EventLoopPolicy())
-    asyncio.run(main())
 
