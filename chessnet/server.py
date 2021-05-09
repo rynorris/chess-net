@@ -28,9 +28,9 @@ async def list_engines():
 @dataclass
 class RegisterEngineRequest:
     family: str
-    tag: str
+    variant: str
+    version: str
     image: str
-    parent: Optional[str]
 
 
 @app.route("/engines", methods=["POST"])
@@ -39,9 +39,9 @@ class RegisterEngineRequest:
 async def register_engine(data: RegisterEngineRequest) -> Engine:
     engine_id = str(uuid.uuid4())
     engine = Engine(
-        uuid=engine_id,
         family=data.family,
-        tag=data.tag,
+        variant=data.variant,
+        version=data.version,
         image=data.image,
         parent=data.parent,
     )

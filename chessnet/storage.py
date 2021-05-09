@@ -12,7 +12,6 @@ class Engine:
     family: str
     variant: str
     version: str
-    parent: Optional[str]
     image: str
 
     def id(self):
