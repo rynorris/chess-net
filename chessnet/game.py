@@ -1,51 +1,48 @@
+import asyncio
+import logging
+
 import chess
 import docker
 
-from chessnet.runner import DockerFileRunner, EngineRunner
-from chessnet.storage import Engine
+from chessnet.runner import EngineRunner
 
 
-async def play_game(white: Engine, black: Engine) -> chess.Outcome:
+log = logging.getLogger(__name__)
+
+
+async def play_game(white: EngineRunner, black: EngineRunner) -> chess.Outcome:
     board = chess.Board()
-    print("Connecting to docker daemon...")
-    client = docker.from_env()
 
-    print("Starting white...")
-    white_runner = DockerFileRunner(client, white.image, 3333)
-    await white_runner.run()
-
-    print("Starting black...")
-    black_runner = DockerFileRunner(client, black.image, 3334)
-    await black_runner.run()
+    log.info("Starting engines...")
+    await asyncio.gather(white.run(), black.run())
 
     try:
-        print(board)
+        log.info(board)
         while True:
-            print("Requesting white move...")
-            res = await white_runner.play(board, chess.engine.Limit(time=0.1))
-            print(f"Got move: {res.move}")
+            log.info("Requesting white move...")
+            res = await white.play(board, chess.engine.Limit(time=0.1))
+            log.info(f"Got move: {res.move}")
 
             board.push(res.move)
-            print(board)
+            log.info(board)
 
             outcome = board.outcome()
             if outcome is not None:
-                print("Game over:", outcome.result())
+                log.info("Game over:", outcome.result())
                 break
 
-            print("Requesting black move...")
-            res = await black_runner.play(board, chess.engine.Limit(time=0.1))
-            print(f"Got move: {res.move}")
+            log.info("Requesting black move...")
+            res = await black.play(board, chess.engine.Limit(time=0.1))
+            log.info(f"Got move: {res.move}")
 
             board.push(res.move)
-            print(board)
+            log.info("\n" + str(board))
 
             outcome = board.outcome()
             if outcome is not None:
-                print("Game over:", outcome.result())
+                log.info(f"Game over: {outcome.result()}")
                 break
     finally:
-        white_runner.shutdown()
-        black_runner.shutdown()
+        await asyncio.gather(white.shutdown(), black.shutdown())
 
     return board.outcome()

@@ -1,11 +1,15 @@
 from abc import ABC, abstractmethod
 import asyncio
+import logging
 
 import chess
 from chess.engine import UciProtocol
 import docker
 
 from chessnet.storage import Engine
+
+
+log = logging.getLogger(__name__)
 
 
 class EngineRunner(ABC):
@@ -67,11 +71,11 @@ class DockerFileRunner(EngineRunner):
     async def run(self):
         self.container = self.client.containers.run(self.image, detach=True, ports={"3333/tcp": self.local_port})
         try:
-            print("Establishing connection...")
+            log.info("Establishing connection...")
             _, adapter = await asyncio.get_running_loop().create_connection(lambda: ProtocolAdapter(chess.engine.UciProtocol()), host="localhost", port=self.local_port)
             self.engine = adapter.protocol
 
-            print("Initializing engine...")
+            log.info("Initializing engine...")
             await self.engine.initialize()
         except:
             self.shutdown()
