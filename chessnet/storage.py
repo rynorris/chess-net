@@ -51,11 +51,11 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_engine(self, uuid: str) -> Engine:
+    def get_engine(self, engine_id: str) -> Engine:
         raise NotImplementedError()
 
     @abstractmethod
-    def delete_engine(self, uuid: str):
+    def delete_engine(self, engine_id: str):
         raise NotImplementedError()
 
     @abstractmethod
