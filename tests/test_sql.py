@@ -12,6 +12,9 @@ game_1 = Game("1", 100, stockfish.id(), alphazero.id(), None)
 game_1_outcome = "1-0"
 game_1_finished = Game("1", 100, stockfish.id(), alphazero.id(), game_1_outcome)
 
+move_1 = Move("e2e4", 101)
+move_2 = Move("e7e5", 102)
+
 
 @pytest.fixture
 async def storage():
@@ -55,4 +58,20 @@ async def test_games(storage):
     await storage.finish_game(game_1.game_id, game_1_outcome)
     game = await storage.get_game(game_1.game_id)
     assert game == game_1_finished
+
+
+@pytest.mark.asyncio
+async def test_moves(storage):
+    await storage.store_engine(stockfish)
+    await storage.store_engine(alphazero)
+    await storage.store_game(game_1)
+
+    moves = [m async for m in await storage.moves_in_game(game_1.game_id)]
+    assert moves == []
+
+    await storage.store_move(game_1.game_id, move_1, "<fen>", stockfish.id())
+    await storage.store_move(game_1.game_id, move_2, "<fen>", alphazero.id())
+
+    moves = [m async for m in await storage.moves_in_game(game_1.game_id)]
+    assert moves == [move_1, move_2]
 

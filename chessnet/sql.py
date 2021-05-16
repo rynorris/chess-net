@@ -82,7 +82,9 @@ class SqlStorage(Storage):
 
     async def list_games(self) -> AsyncIterator[Game]:
         async with self.db.begin() as conn:
-            result = await conn.stream(select(self.games_table))
+            result = await conn.stream(
+                    select(self.games_table)
+                    .order_by(self.games_table.c.timestamp.desc()))
             return (self._load_game(row) async for row in result)
 
     async def store_game(self, game: Game):
@@ -110,17 +112,18 @@ class SqlStorage(Storage):
                     .where(self.games_table.c.white == engine_id or self.games_table.c.black == engine_id))
             return (self._load_game(row) async for row in result)
 
-    async def store_move(self, move: Move, fen_before: str, engine_id: str):
+    async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str):
         async with self.db.begin() as conn:
             await conn.execute(
                     insert(self.moves_table)
-                    .values(**self._store_move(move, fen_before, engine_id)))
+                    .values(**self._store_move(game_id, move, fen_before, engine_id)))
 
     async def moves_in_game(self, game_id: str) -> AsyncIterator[Move]:
         async with self.db.begin() as conn:
             result = await conn.stream(
                     select(self.moves_table.c.san, self.moves_table.c.timestamp)
-                    .where(self.moves_table.c.game_id == game_id))
+                    .where(self.moves_table.c.game_id == game_id)
+                    .order_by(self.moves_table.c.timestamp))
             return (self._load_move(row) async for row in result)
 
     def _load_engine(self, row):
@@ -164,8 +167,9 @@ class SqlStorage(Storage):
             timestamp=row.timestamp,
         )
 
-    def _store_move(self, move: Move, fen_before: str, engine_id: str):
+    def _store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str):
         return {
+            "game_id": game_id,
             "san": move.san,
             "timestamp": move.timestamp,
             "fen_before": fen_before,
