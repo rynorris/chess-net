@@ -1,8 +1,8 @@
 import asyncio
-from typing import List, AsyncIterable
+from typing import List, AsyncIterator
 
 from sqlalchemy import (
-    insert, text,
+    delete, insert, select,
     ForeignKey, Index, MetaData, Table, Column,
     String, Integer,
 )
@@ -54,9 +54,9 @@ class SqlStorage(Storage):
             await conn.run_sync(self.metadata.create_all)
 
 
-    async def list_engines(self) -> AsyncIterable[Engine]:
+    async def list_engines(self) -> AsyncIterator[Engine]:
         async with self.db.begin() as conn:
-            result = await conn.stream(text("SELECT * FROM engines"))
+            result = await conn.stream(select(self.engines_table))
             return (self._load_engine(row) async for row in result)
 
     async def store_engine(self, engine: Engine):
@@ -65,30 +65,63 @@ class SqlStorage(Storage):
 
     async def get_engine(self, engine_id: str) -> Engine:
         async with self.db.begin() as conn:
-            result = await conn.execute(text("SELECT * FROM engines WHERE engine_id = :engine_id").bindparams(engine_id=engine_id))
+            result = await conn.execute(
+                    select(self.engines_table)
+                    .where(self.engines_table.c.engine_id == engine_id))
             engines = [self._load_engine(row) for row in result]
 
         if len(engines) != 1:
-            raise Exception("No engine async with ID: {}", engine_id)
+            raise Exception("No engine with ID: {}", engine_id)
         return engines[0]
 
     async def delete_engine(self, engine_id: str):
         async with self.db.begin() as conn:
-            await conn.execute(text("DELETE FROM engines WHERE engine_id = :engine_id").bindparams(engine_id=engine_id))
+            await conn.execute(
+                    delete(self.engines_table)
+                    .where(self.engines_table.c.engine_id == engine_id))
 
-    async def list_games(self) -> AsyncIterable[Game]:
+    async def list_games(self) -> AsyncIterator[Game]:
         async with self.db.begin() as conn:
-            result = await conn.stream(text("SELECT * FROM games"))
+            result = await conn.stream(select(self.games_table))
             return (self._load_game(row) async for row in result)
 
     async def store_game(self, game: Game):
-        raise NotImplementedError()
+        async with self.db.begin() as conn:
+            await conn.execute(insert(self.games_table).values(**self.store_game(game)))
 
-    async def get_game(self, uuid: str) -> Game:
-        raise NotImplementedError()
+    async def finish_game(self, game_id: str, outcome: str):
+        async with self.db.begin() as conn:
+            await conn.execute(
+                    update(self.games_table)
+                    .where(self.games_table.c.game_id == game_id)
+                    .values(outcome=outcome))
 
-    async def games_for_engine(self, uuid: str) -> List[Game]:
-        raise NotImplementedError()
+    async def get_game(self, game_id: str) -> Game:
+        async with self.db.begin() as conn:
+            result = await conn.stream(
+                    select(self.games_table)
+                    .where(self.games_table.c.game_id == game_id))
+            return self._load_game(await result.first())
+
+    async def games_for_engine(self, engine_id: str) -> AsyncIterator[Game]:
+        async with self.db.begin() as conn:
+            result = await conn.stream(
+                    select(self.games_table)
+                    .where(self.games_table.c.white == engine_id or self.games_table.c.black == engine_id))
+            return (self._load_game(row) async for row in result)
+
+    async def store_move(self, move: Move, fen_before: str, engine_id: str):
+        async with self.db.begin() as conn:
+            await conn.execute(
+                    insert(self.moves_table)
+                    .values(**self._store_move(move, fen_before, engine_id)))
+
+    async def moves_in_game(self, game_id: str) -> AsyncIterator[Move]:
+        async with self.db.begin() as conn:
+            result = await conn.stream(
+                    select(self.moves_table.c.san, self.moves_table.c.timestamp)
+                    .where(self.moves_table.c.game_id == game_id))
+            return (self._load_move(row) async for row in result)
 
     def _load_engine(self, row):
         return Engine(
@@ -123,6 +156,20 @@ class SqlStorage(Storage):
             "white": game.white,
             "black": game.black,
             "outcome": game.outcome,
+        }
+
+    def _load_move(self, row):
+        return Move(
+            san=row.san,
+            timestamp=row.timestamp,
+        )
+
+    def _store_move(self, move: Move, fen_before: str, engine_id: str):
+        return {
+            "san": move.san,
+            "timestamp": move.timestamp,
+            "fen_before": fen_before,
+            "engine_id": engine_id,
         }
 
 
