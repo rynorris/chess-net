@@ -7,6 +7,6 @@ jobs:
       - name: Mypy Check
         uses: jpetrucciani/mypy-check@0.761
         with:
-          path: **/*.py
+          path: '**/*.py'
 
 
