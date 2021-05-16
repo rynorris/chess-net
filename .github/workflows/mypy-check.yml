@@ -1,0 +1,10 @@
+name: Type Check
+on: [push]
+jobs:
+  Run-Mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mypy Check
+        uses: jpetrucciani/mypy-check@0.761
+
+
