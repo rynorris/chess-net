@@ -1,5 +1,5 @@
 import asyncio
-from typing import List
+from typing import List, AsyncIterable
 
 from sqlalchemy import (
     insert, text,
@@ -54,10 +54,10 @@ class SqlStorage(Storage):
             await conn.run_sync(self.metadata.create_all)
 
 
-    async def list_engines(self) -> List[Engine]:
+    async def list_engines(self) -> AsyncIterable[Engine]:
         async with self.db.begin() as conn:
-            result = await conn.execute(text("SELECT * FROM engines"))
-            return [self._load_engine(row) for row in result]
+            result = await conn.stream(text("SELECT * FROM engines"))
+            return (self._load_engine(row) async for row in result)
 
     async def store_engine(self, engine: Engine):
         async with self.db.begin() as conn:
@@ -76,9 +76,10 @@ class SqlStorage(Storage):
         async with self.db.begin() as conn:
             await conn.execute(text("DELETE FROM engines WHERE engine_id = :engine_id").bindparams(engine_id=engine_id))
 
-    async def list_games(self) -> List[Game]:
+    async def list_games(self) -> AsyncIterable[Game]:
         async with self.db.begin() as conn:
-            result = await conn.execute(text("SELECT * FROM games"))
+            result = await conn.stream(text("SELECT * FROM games"))
+            return (self._load_game(row) async for row in result)
 
     async def store_game(self, game: Game):
         raise NotImplementedError()
@@ -106,6 +107,24 @@ class SqlStorage(Storage):
             "image": engine.image,
         }
 
+    def _load_game(self, row):
+        return Game(
+            game_id=row.game_id,
+            timestamp=row.timestamp,
+            white=row.white,
+            black=row.black,
+            outcome=row.outcome,
+        )
+
+    def _store_game(self, game):
+        return {
+            "game_id": game.game_id,
+            "timestamp": game.timestamp,
+            "white": game.white,
+            "black": game.black,
+            "outcome": game.outcome,
+        }
+
 
 async def main():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=True, future=True)
@@ -113,9 +132,9 @@ async def main():
     await storage.initialize()
     await storage.store_engine(Engine("stockfish", "main", "11", "andrijdavid/stockfish:11"))
     await storage.store_engine(Engine("stockfish", "main", "12", "andrijdavid/stockfish:12"))
-    print(await storage.list_engines())
+    print([e async for e in await storage.list_engines()])
     await storage.delete_engine("stockfish#main#11")
-    print(await storage.list_engines())
+    print([e async for e in await storage.list_engines()])
 
 if __name__ == "__main__":
     asyncio.run(main())
