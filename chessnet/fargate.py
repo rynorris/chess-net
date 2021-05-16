@@ -9,7 +9,6 @@ import boto3
 import chess
 
 from chessnet.runner import EngineRunner, ProtocolAdapter, TransportAdapter
-from chessnet.storage import FileStorage
 
 
 AWS_REGION = os.getenv("AWS_REGION")
@@ -206,17 +205,4 @@ class FargateEngineManager():
             "key": "task_definition_version",
             "value": f"v{self.TASK_DEF_VERSION}",
         }
-
-
-async def main():
-    storage = FileStorage("./data.pickle")
-    manager = FargateEngineManager("chess-net")
-    #log.info(manager.get_or_create_task_definition(storage.get_engine("stockfish#main#11")))
-    running_engine = await manager.run_engine(storage.get_engine("stockfish#main#11"))
-    log.info(running_engine)
-    await manager.stop_engine(running_engine)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
 

@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, AsyncIterator
+from typing import List
 
 from sqlalchemy import (
     delete, insert, select, update,
@@ -54,10 +54,10 @@ class SqlStorage(Storage):
             await conn.run_sync(self.metadata.create_all)
 
 
-    async def list_engines(self) -> AsyncIterator[Engine]:
+    async def list_engines(self) -> List[Engine]:
         async with self.db.begin() as conn:
             result = await conn.stream(select(self.engines_table))
-            return (self._load_engine(row) async for row in result)
+            return [self._load_engine(row) async for row in result]
 
     async def store_engine(self, engine: Engine):
         async with self.db.begin() as conn:
@@ -80,12 +80,12 @@ class SqlStorage(Storage):
                     delete(self.engines_table)
                     .where(self.engines_table.c.engine_id == engine_id))
 
-    async def list_games(self) -> AsyncIterator[Game]:
+    async def list_games(self) -> List[Game]:
         async with self.db.begin() as conn:
             result = await conn.stream(
                     select(self.games_table)
                     .order_by(self.games_table.c.timestamp.desc()))
-            return (self._load_game(row) async for row in result)
+            return [self._load_game(row) async for row in result]
 
     async def store_game(self, game: Game):
         async with self.db.begin() as conn:
@@ -105,12 +105,12 @@ class SqlStorage(Storage):
                     .where(self.games_table.c.game_id == game_id))
             return self._load_game(await result.first())
 
-    async def games_for_engine(self, engine_id: str) -> AsyncIterator[Game]:
+    async def games_for_engine(self, engine_id: str) -> List[Game]:
         async with self.db.begin() as conn:
             result = await conn.stream(
                     select(self.games_table)
                     .where(self.games_table.c.white == engine_id or self.games_table.c.black == engine_id))
-            return (self._load_game(row) async for row in result)
+            return [self._load_game(row) async for row in result]
 
     async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str):
         async with self.db.begin() as conn:
@@ -118,13 +118,13 @@ class SqlStorage(Storage):
                     insert(self.moves_table)
                     .values(**self._store_move(game_id, move, fen_before, engine_id)))
 
-    async def moves_in_game(self, game_id: str) -> AsyncIterator[Move]:
+    async def moves_in_game(self, game_id: str) -> List[Move]:
         async with self.db.begin() as conn:
             result = await conn.stream(
                     select(self.moves_table.c.san, self.moves_table.c.timestamp)
                     .where(self.moves_table.c.game_id == game_id)
                     .order_by(self.moves_table.c.timestamp))
-            return (self._load_move(row) async for row in result)
+            return [self._load_move(row) async for row in result]
 
     def _load_engine(self, row):
         return Engine(
@@ -176,16 +176,3 @@ class SqlStorage(Storage):
             "engine_id": engine_id,
         }
 
-
-async def main():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=True, future=True)
-    storage = SqlStorage(engine)
-    await storage.initialize()
-    await storage.store_engine(Engine("stockfish", "main", "11", "andrijdavid/stockfish:11"))
-    await storage.store_engine(Engine("stockfish", "main", "12", "andrijdavid/stockfish:12"))
-    print([e async for e in await storage.list_engines()])
-    await storage.delete_engine("stockfish#main#11")
-    print([e async for e in await storage.list_engines()])
-
-if __name__ == "__main__":
-    asyncio.run(main())

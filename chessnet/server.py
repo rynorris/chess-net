@@ -1,17 +1,28 @@
 import asyncio
+import logging
 from typing import List, Optional
 import uuid
 
 from pydantic.dataclasses import dataclass
 from quart import Quart
 from quart_schema import QuartSchema, validate_response, validate_request
+from sqlalchemy.ext.asyncio import create_async_engine
 
 import chessnet.game
-from chessnet.storage import Engine, FileStorage, Game
+from chessnet.fargate import FargateEngineManager, FargateRunner
+from chessnet.storage import Engine, Game, Move
+from chessnet.sql import SqlStorage
 
 app = Quart("ChessNET")
 
-storage = FileStorage("./data.pickle")
+engine = create_async_engine("sqlite+aiosqlite:///data.sqlite", echo=False, future=True)
+fargate = FargateEngineManager("chess-net")
+storage = SqlStorage(engine)
+
+
+@app.before_serving
+async def initialize_db():
+    await storage.initialize()
 
 
 @dataclass
@@ -22,7 +33,7 @@ class EnginesResponse:
 @app.route("/engines", methods=["GET"])
 @validate_response(EnginesResponse)
 async def list_engines():
-    return EnginesResponse(storage.list_engines())
+    return EnginesResponse(await storage.list_engines())
 
 
 @dataclass
@@ -44,7 +55,7 @@ async def register_engine(data: RegisterEngineRequest) -> Engine:
         version=data.version,
         image=data.image,
     )
-    storage.store_engine(engine)
+    await storage.store_engine(engine)
     return engine
 
 
@@ -64,26 +75,25 @@ class PlayGameResponse:
 @validate_response(PlayGameResponse)
 async def play_game(data: PlayGameRequest) -> PlayGameResponse:
     game_id = str(uuid.uuid4())
-    white_engine = storage.get_engine(data.white)
-    black_engine = storage.get_engine(data.black)
+    white, black = await asyncio.gather(storage.get_engine(data.white), storage.get_engine(data.black))
 
     async def _play():
-        outcome = await chessnet.game.play_game(white_engine, black_engine)
+        white_runner = FargateRunner(fargate, white)
+        black_runner = FargateRunner(fargate, black)
         game = Game(
-            uuid=game_id,
+            game_id=game_id,
             timestamp=0,
             white=data.white,
             black=data.black,
-            moves=[],
-            result=outcome.result(),
-            white_elo_before=0,
-            white_elo_after=0,
-            black_elo_before=0,
-            black_elo_after=0,
+            outcome=None,
         )
-        storage.store_game(game)
+        await storage.store_game(game)
+        outcome = await chessnet.game.play_game(white_runner, black_runner)
+        await storage.finish_game(game_id, outcome.result())
 
+    # Explicitly kick this off asynchronously and just return the ID.
     asyncio.create_task(_play())
+
     return PlayGameResponse(game_id)
 
 
@@ -95,9 +105,26 @@ class GamesResponse:
 @app.route("/games", methods=["GET"])
 @validate_response(GamesResponse)
 async def list_games():
-    return GamesResponse(storage.list_games())
+    return GamesResponse(await storage.list_games())
 
+
+@app.route("/games/<game_id>", methods=["GET"])
+@validate_response(Game)
+async def get_game(game_id):
+    return await storage.get_game(game_id)
+
+
+@dataclass
+class MovesResponse:
+    moves: List[Move]
+
+
+@app.route("/games/<game_id>/moves", methods=["GET"])
+@validate_response(MovesResponse)
+async def get_game_moves(game_id):
+    return MovesResponse(await storage.moves_in_game(game_id))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     app.run()

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pydantic.dataclasses import dataclass
-from typing import List, Optional, AsyncIterator
+from typing import List, Optional
 
 import json
 import os
@@ -38,7 +38,7 @@ class Game:
 
 class Storage(ABC):
     @abstractmethod
-    async def list_engines(self) -> AsyncIterator[Engine]:
+    async def list_engines(self) -> List[Engine]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -54,7 +54,7 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def list_games(self) -> AsyncIterator[Game]:
+    async def list_games(self) -> List[Game]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -70,7 +70,7 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def games_for_engine(self, engine_id: str) -> AsyncIterator[Game]:
+    async def games_for_engine(self, engine_id: str) -> List[Game]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -78,6 +78,6 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def moves_in_game(self, game_id: str) -> AsyncIterator[Move]:
+    async def moves_in_game(self, game_id: str) -> List[Move]:
         raise NotImplementedError()
 

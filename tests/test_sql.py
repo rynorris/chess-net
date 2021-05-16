@@ -26,19 +26,19 @@ async def storage():
 
 @pytest.mark.asyncio
 async def test_engines(storage):
-    engines = [e async for e in await storage.list_engines()]
+    engines = await storage.list_engines()
     assert engines == []
 
     await storage.store_engine(stockfish)
-    engines = [e async for e in await storage.list_engines()]
+    engines = await storage.list_engines()
     assert engines == [stockfish]
 
     await storage.store_engine(alphazero)
-    engines = [e async for e in await storage.list_engines()]
+    engines = await storage.list_engines()
     assert set(engines) == set([stockfish, alphazero])
 
     await storage.delete_engine(stockfish.id())
-    engines = [e async for e in await storage.list_engines()]
+    engines = await storage.list_engines()
     assert set(engines) == set([alphazero])
 
     engine = await storage.get_engine(alphazero.id())
@@ -52,7 +52,7 @@ async def test_games(storage):
 
     await storage.store_game(game_1)
 
-    games = [g async for g in await storage.list_games()]
+    games = await storage.list_games()
     assert games == [game_1]
 
     await storage.finish_game(game_1.game_id, game_1_outcome)
@@ -66,12 +66,12 @@ async def test_moves(storage):
     await storage.store_engine(alphazero)
     await storage.store_game(game_1)
 
-    moves = [m async for m in await storage.moves_in_game(game_1.game_id)]
+    moves = await storage.moves_in_game(game_1.game_id)
     assert moves == []
 
     await storage.store_move(game_1.game_id, move_1, "<fen>", stockfish.id())
     await storage.store_move(game_1.game_id, move_2, "<fen>", alphazero.id())
 
-    moves = [m async for m in await storage.moves_in_game(game_1.game_id)]
+    moves = await storage.moves_in_game(game_1.game_id)
     assert moves == [move_1, move_2]
 
