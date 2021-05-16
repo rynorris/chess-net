@@ -1,6 +1,12 @@
+import asyncio
 from typing import List
 
-from sqlalchemy import create_engine, insert, text, MetaData, Table, Column, String
+from sqlalchemy import (
+    insert, text,
+    ForeignKey, Index, MetaData, Table, Column,
+    String, Integer,
+)
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from chessnet.storage import Game, Engine, Move, Storage
 
@@ -9,50 +15,78 @@ class SqlStorage(Storage):
     def __init__(self, db):
         self.db = db
         self.metadata = MetaData()
+
         self.engines_table = Table(
             "engines",
             self.metadata,
             Column("engine_id", String, primary_key=True),
-            Column("family", String),
-            Column("variant", String),
-            Column("version", String),
-            Column("image", String),
+            Column("family", String, nullable=False),
+            Column("variant", String, nullable=False),
+            Column("version", String, nullable=False),
+            Column("image", String, nullable=False),
         )
-        self.metadata.create_all(self.db)
+
+        self.games_table = Table(
+            "games",
+            self.metadata,
+            Column("game_id", String, primary_key=True),
+            Column("timestamp", Integer, nullable=False),
+            Column("white", ForeignKey("engines.engine_id"), nullable=False, index=True),
+            Column("black", ForeignKey("engines.engine_id"), nullable=False, index=True),
+            Column("outcome", String),
+        )
+
+        self.moves_table = Table(
+            "moves",
+            self.metadata,
+            Column("game_id", ForeignKey("games.game_id"), nullable=False, index=True),
+            Column("engine_id", ForeignKey("engines.engine_id"), nullable=False),
+            Column("fen_before", String, nullable=False, index=True),
+            Column("san", String, nullable=False),
+            Column("timestamp", Integer, nullable=False),
+
+            Index("idx_engine_positions", "engine_id", "fen_before"),
+        )
 
 
-    def list_engines(self) -> List[Engine]:
-        with self.db.begin() as conn:
-            result = conn.execute(text("SELECT * FROM engines"))
+    async def initialize(self):
+        async with self.db.begin() as conn:
+            await conn.run_sync(self.metadata.create_all)
+
+
+    async def list_engines(self) -> List[Engine]:
+        async with self.db.begin() as conn:
+            result = await conn.execute(text("SELECT * FROM engines"))
             return [self._load_engine(row) for row in result]
 
-    def store_engine(self, engine: Engine):
-        with self.db.begin() as conn:
-            conn.execute(insert(self.engines_table).values(**self._store_engine(engine)))
+    async def store_engine(self, engine: Engine):
+        async with self.db.begin() as conn:
+            await conn.execute(insert(self.engines_table).values(**self._store_engine(engine)))
 
-    def get_engine(self, engine_id: str) -> Engine:
-        with self.db.begin() as conn:
-            result = conn.execute(text("SELECT * FROM engines WHERE engine_id = :engine_id").bindparams(engine_id=engine_id))
+    async def get_engine(self, engine_id: str) -> Engine:
+        async with self.db.begin() as conn:
+            result = await conn.execute(text("SELECT * FROM engines WHERE engine_id = :engine_id").bindparams(engine_id=engine_id))
             engines = [self._load_engine(row) for row in result]
 
         if len(engines) != 1:
-            raise Exception("No engine with ID: {}", engine_id)
+            raise Exception("No engine async with ID: {}", engine_id)
         return engines[0]
 
-    def delete_engine(self, engine_id: str):
-        with self.db.begin() as conn:
-            conn.execute(text("DELETE FROM engines WHERE engine_id = :engine_id").bindparams(engine_id=engine_id))
+    async def delete_engine(self, engine_id: str):
+        async with self.db.begin() as conn:
+            await conn.execute(text("DELETE FROM engines WHERE engine_id = :engine_id").bindparams(engine_id=engine_id))
 
-    def list_games(self) -> List[Game]:
+    async def list_games(self) -> List[Game]:
+        async with self.db.begin() as conn:
+            result = await conn.execute(text("SELECT * FROM games"))
+
+    async def store_game(self, game: Game):
         raise NotImplementedError()
 
-    def store_game(self, game: Game):
+    async def get_game(self, uuid: str) -> Game:
         raise NotImplementedError()
 
-    def get_game(self, uuid: str) -> Game:
-        raise NotImplementedError()
-
-    def games_for_engine(self, uuid: str) -> List[Game]:
+    async def games_for_engine(self, uuid: str) -> List[Game]:
         raise NotImplementedError()
 
     def _load_engine(self, row):
@@ -73,11 +107,15 @@ class SqlStorage(Storage):
         }
 
 
-if __name__ == "__main__":
-    engine = create_engine("sqlite+pysqlite:///:memory:", echo=True, future=True)
+async def main():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=True, future=True)
     storage = SqlStorage(engine)
-    storage.store_engine(Engine("stockfish", "main", "11", "andrijdavid/stockfish:11"))
-    storage.store_engine(Engine("stockfish", "main", "12", "andrijdavid/stockfish:12"))
-    print(storage.list_engines())
-    storage.delete_engine("stockfish#main#11")
-    print(storage.list_engines())
+    await storage.initialize()
+    await storage.store_engine(Engine("stockfish", "main", "11", "andrijdavid/stockfish:11"))
+    await storage.store_engine(Engine("stockfish", "main", "12", "andrijdavid/stockfish:12"))
+    print(await storage.list_engines())
+    await storage.delete_engine("stockfish#main#11")
+    print(await storage.list_engines())
+
+if __name__ == "__main__":
+    asyncio.run(main())
