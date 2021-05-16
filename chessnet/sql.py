@@ -42,7 +42,7 @@ class SqlStorage(Storage):
             Column("game_id", ForeignKey("games.game_id"), nullable=False, index=True),
             Column("engine_id", ForeignKey("engines.engine_id"), nullable=False),
             Column("fen_before", String, nullable=False, index=True),
-            Column("san", String, nullable=False),
+            Column("uci", String, nullable=False),
             Column("timestamp", Integer, nullable=False),
 
             Index("idx_engine_positions", "engine_id", "fen_before"),
@@ -121,7 +121,7 @@ class SqlStorage(Storage):
     async def moves_in_game(self, game_id: str) -> List[Move]:
         async with self.db.begin() as conn:
             result = await conn.stream(
-                    select(self.moves_table.c.san, self.moves_table.c.timestamp)
+                    select(self.moves_table.c.uci, self.moves_table.c.timestamp)
                     .where(self.moves_table.c.game_id == game_id)
                     .order_by(self.moves_table.c.timestamp))
             return [self._load_move(row) async for row in result]
@@ -163,14 +163,14 @@ class SqlStorage(Storage):
 
     def _load_move(self, row):
         return Move(
-            san=row.san,
+            uci=row.uci,
             timestamp=row.timestamp,
         )
 
     def _store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str):
         return {
             "game_id": game_id,
-            "san": move.san,
+            "uci": move.uci,
             "timestamp": move.timestamp,
             "fen_before": fen_before,
             "engine_id": engine_id,

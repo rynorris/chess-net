@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import List, Optional
 import uuid
+import sys
 
 from pydantic.dataclasses import dataclass
 from quart import Quart
@@ -9,6 +10,7 @@ from quart_schema import QuartSchema, validate_response, validate_request
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import chessnet.game
+from chessnet.events import Broker, Event, Events, EventType
 from chessnet.fargate import FargateEngineManager, FargateRunner
 from chessnet.storage import Engine, Game, Move
 from chessnet.sql import SqlStorage
@@ -18,6 +20,19 @@ app = Quart("ChessNET")
 engine = create_async_engine("sqlite+aiosqlite:///data.sqlite", echo=False, future=True)
 fargate = FargateEngineManager("chess-net")
 storage = SqlStorage(engine)
+broker = Broker()
+
+
+async def store_event(event: Event):
+    if event.typ == EventType.START_GAME:
+        await storage.store_game(event.game)
+    elif event.typ == EventType.END_GAME:
+        await storage.finish_game(event.game_id, event.outcome)
+    elif event.typ == EventType.MAKE_MOVE:
+        await storage.store_move(event.game_id, event.move, event.fen_before, event.engine_id)
+
+
+broker.subscribe("*", [EventType.START_GAME, EventType.END_GAME, EventType.MAKE_MOVE], store_event)
 
 
 @app.before_serving
@@ -78,6 +93,11 @@ async def play_game(data: PlayGameRequest) -> PlayGameResponse:
     white, black = await asyncio.gather(storage.get_engine(data.white), storage.get_engine(data.black))
 
     async def _play():
+        #import docker
+        #from chessnet.runner import DockerFileRunner
+        #client = docker.from_env()
+        #white_runner = DockerFileRunner(client, white, 3333)
+        #black_runner = DockerFileRunner(client, black, 3334)
         white_runner = FargateRunner(fargate, white)
         black_runner = FargateRunner(fargate, black)
         game = Game(
@@ -87,9 +107,9 @@ async def play_game(data: PlayGameRequest) -> PlayGameResponse:
             black=data.black,
             outcome=None,
         )
-        await storage.store_game(game)
-        outcome = await chessnet.game.play_game(white_runner, black_runner)
-        await storage.finish_game(game_id, outcome.result())
+        broker.publish(game_id, Events.start_game(game))
+        outcome = await chessnet.game.play_game(broker, game_id, white_runner, black_runner)
+        broker.publish(game_id, Events.end_game(game_id, outcome.result()))
 
     # Explicitly kick this off asynchronously and just return the ID.
     asyncio.create_task(_play())
@@ -127,4 +147,5 @@ async def get_game_moves(game_id):
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+    logging.getLogger("chess.engine").setLevel(logging.DEBUG)
     app.run()

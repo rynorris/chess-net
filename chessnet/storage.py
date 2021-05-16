@@ -23,7 +23,7 @@ class Engine:
 
 @dataclass(frozen=True)
 class Move:
-    san: str
+    uci: str
     timestamp: int # ms since epoch
 
 
