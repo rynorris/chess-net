@@ -26,7 +26,7 @@ class EngineRunner(ABC):
         pass
 
     @abstractmethod
-    def engine() -> Engine:
+    def engine(self) -> Engine:
         pass
 
 

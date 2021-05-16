@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 
 import chess
 import docker
@@ -12,7 +13,7 @@ from chessnet.storage import Move
 log = logging.getLogger(__name__)
 
 
-async def play_game(broker: Broker, game_id: str, white: EngineRunner, black: EngineRunner) -> chess.Outcome:
+async def play_game(broker: Broker, game_id: str, white: EngineRunner, black: EngineRunner) -> Optional[chess.Outcome]:
     board = chess.Board()
 
 

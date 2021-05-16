@@ -46,12 +46,12 @@ class EnginesResponse:
 
 
 @app.route("/engines", methods=["GET"])
-@validate_response(EnginesResponse)
+@validate_response(EnginesResponse)  # type: ignore
 async def list_engines():
     return EnginesResponse(await storage.list_engines())
 
 
-@dataclass
+@dataclass(frozen=True)
 class RegisterEngineRequest:
     family: str
     variant: str
@@ -60,8 +60,8 @@ class RegisterEngineRequest:
 
 
 @app.route("/engines", methods=["POST"])
-@validate_request(RegisterEngineRequest)
-@validate_response(Engine)
+@validate_request(RegisterEngineRequest)  # type: ignore
+@validate_response(Engine)  # type: ignore
 async def register_engine(data: RegisterEngineRequest) -> Engine:
     engine_id = str(uuid.uuid4())
     engine = Engine(
@@ -86,8 +86,8 @@ class PlayGameResponse:
 
 
 @app.route("/play", methods=["POST"])
-@validate_request(PlayGameRequest)
-@validate_response(PlayGameResponse)
+@validate_request(PlayGameRequest)  # type: ignore
+@validate_response(PlayGameResponse)  # type: ignore
 async def play_game(data: PlayGameRequest) -> PlayGameResponse:
     game_id = str(uuid.uuid4())
     white, black = await asyncio.gather(storage.get_engine(data.white), storage.get_engine(data.black))
@@ -123,13 +123,13 @@ class GamesResponse:
 
 
 @app.route("/games", methods=["GET"])
-@validate_response(GamesResponse)
+@validate_response(GamesResponse)  # type: ignore
 async def list_games():
     return GamesResponse(await storage.list_games())
 
 
 @app.route("/games/<game_id>", methods=["GET"])
-@validate_response(Game)
+@validate_response(Game)  # type: ignore
 async def get_game(game_id):
     return await storage.get_game(game_id)
 
@@ -140,7 +140,7 @@ class MovesResponse:
 
 
 @app.route("/games/<game_id>/moves", methods=["GET"])
-@validate_response(MovesResponse)
+@validate_response(MovesResponse)  # type: ignore
 async def get_game_moves(game_id):
     return MovesResponse(await storage.moves_in_game(game_id))
 

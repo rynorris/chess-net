@@ -74,7 +74,7 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def store_move(self, move: Move, fen_before: str, engine_id: str):
+    async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str):
         raise NotImplementedError()
 
     @abstractmethod
