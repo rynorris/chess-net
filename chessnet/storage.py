@@ -7,7 +7,7 @@ import os
 import pickle
 
 
-@dataclass
+@dataclass(frozen=True)
 class Engine:
     family: str
     variant: str
@@ -21,13 +21,13 @@ class Engine:
         return self.id()
 
 
-@dataclass
+@dataclass(frozen=True)
 class Move:
     san: str
     timestamp: int # ms since epoch
 
 
-@dataclass
+@dataclass(frozen=True)
 class Game:
     game_id: str
     timestamp: int  # ms since epoch
@@ -59,6 +59,10 @@ class Storage(ABC):
 
     @abstractmethod
     async def store_game(self, game: Game):
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def finish_game(self, game_id: str, outcome: str):
         raise NotImplementedError()
 
     @abstractmethod

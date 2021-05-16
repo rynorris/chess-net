@@ -2,7 +2,7 @@ import asyncio
 from typing import List, AsyncIterator
 
 from sqlalchemy import (
-    delete, insert, select,
+    delete, insert, select, update,
     ForeignKey, Index, MetaData, Table, Column,
     String, Integer,
 )
@@ -87,7 +87,7 @@ class SqlStorage(Storage):
 
     async def store_game(self, game: Game):
         async with self.db.begin() as conn:
-            await conn.execute(insert(self.games_table).values(**self.store_game(game)))
+            await conn.execute(insert(self.games_table).values(**self._store_game(game)))
 
     async def finish_game(self, game_id: str, outcome: str):
         async with self.db.begin() as conn:
