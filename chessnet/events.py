@@ -1,7 +1,7 @@
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from enum import Enum
-from typing import Literal, Union
+from typing import Literal, NoReturn, Union
 import uuid
 
 from pydantic.dataclasses import dataclass
@@ -41,30 +41,34 @@ class MakeMoveEvent:
 Event = Union[
     StartGameEvent,
     EndGameEvent,
+    MakeMoveEvent,
 ]
 
 
 class Events:
     @staticmethod
-    def start_game(game: Game):
+    def start_game(game: Game) -> StartGameEvent:
         return StartGameEvent(EventType.START_GAME, game)
 
     @staticmethod
-    def end_game(game_id: str, outcome: str):
+    def end_game(game_id: str, outcome: str) -> EndGameEvent:
         return EndGameEvent(EventType.END_GAME, game_id, outcome)
 
     @staticmethod
-    def make_move(game_id: str, move: Move, fen_before: str, engine_id: str):
+    def make_move(game_id: str, move: Move, fen_before: str, engine_id: str) -> MakeMoveEvent:
         return MakeMoveEvent(EventType.MAKE_MOVE, game_id, move, fen_before, engine_id)
 
 
+EventCallback = Callable[[Event], Awaitable[NoReturn]]
+
+
 class Subscription:
-    def __init__(self, channel: str, typs: Iterable[EventType], callback):
+    def __init__(self, channel: str, typs: Iterable[EventType], callback: EventCallback):
         self.channel = channel
         self.typs = set(typs)
         self.callback = callback
 
-    async def accept(self, event: Event):
+    async def accept(self, event: Event) -> NoReturn:  # type: ignore[misc]
         if event.typ in self.typs:
             await self.callback(event)
 
@@ -75,14 +79,14 @@ class Broker:
         # Special key "*" for all.
         self.subscriptions = {}
 
-    def publish(self, channel: str, event: Event):
+    def publish(self, channel: str, event: Event) -> NoReturn:  # type: ignore[misc]
         for sub in self.subscriptions.get(channel, {}).values():
             asyncio.create_task(sub.accept(event))
 
         for sub in self.subscriptions.get("*", {}).values():
             asyncio.create_task(sub.accept(event))
 
-    def subscribe(self, channel, typs: Iterable[EventType], callback) -> str:
+    def subscribe(self, channel: str, typs: Iterable[EventType], callback: EventCallback) -> str:
         handle = str(uuid.uuid4())
         sub = Subscription(channel, typs, callback)
         if channel not in self.subscriptions:
@@ -91,7 +95,7 @@ class Broker:
         self.subscriptions[channel][handle] = sub
         return handle
 
-    def unsubscribe(self, handle: str):
+    def unsubscribe(self, handle: str) -> NoReturn:  # type: ignore[misc]
         channels = list(self.subscriptions.keys())
         for channel in channels:
             if handle in self.subscriptions[channel]:

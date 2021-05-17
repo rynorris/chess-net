@@ -1,13 +1,13 @@
 import asyncio
 import logging
-from typing import List, Optional
+from typing import List, NoReturn, Optional
 import uuid
 import sys
 
 from pydantic.dataclasses import dataclass
 from quart import Quart
 from quart_schema import QuartSchema, validate_response, validate_request
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 import chessnet.game
 from chessnet.events import Broker, Event, Events, EventType
@@ -23,7 +23,7 @@ storage = SqlStorage(engine)
 broker = Broker()
 
 
-async def store_event(event: Event):
+async def store_event(event: Event) -> NoReturn:  # type: ignore[misc]
     if event.typ == EventType.START_GAME:
         await storage.store_game(event.game)
     elif event.typ == EventType.END_GAME:

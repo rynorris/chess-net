@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pydantic.dataclasses import dataclass
-from typing import List, Optional
+from typing import List, NoReturn, Optional
 
 import json
 import os
@@ -42,7 +42,7 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def store_engine(self, engine: Engine):
+    async def store_engine(self, engine: Engine) -> NoReturn:
         raise NotImplementedError()
 
     @abstractmethod
@@ -50,7 +50,7 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def delete_engine(self, engine_id: str):
+    async def delete_engine(self, engine_id: str) -> NoReturn:
         raise NotImplementedError()
 
     @abstractmethod
@@ -58,11 +58,11 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def store_game(self, game: Game):
+    async def store_game(self, game: Game) -> NoReturn:
         raise NotImplementedError()
 
     @abstractmethod
-    async def finish_game(self, game_id: str, outcome: str):
+    async def finish_game(self, game_id: str, outcome: str) -> NoReturn:
         raise NotImplementedError()
 
     @abstractmethod
@@ -74,7 +74,7 @@ class Storage(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str):
+    async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str) -> NoReturn:
         raise NotImplementedError()
 
     @abstractmethod

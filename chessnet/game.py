@@ -3,7 +3,6 @@ import logging
 from typing import Optional
 
 import chess
-import docker
 
 from chessnet.events import Broker, Events
 from chessnet.runner import EngineRunner

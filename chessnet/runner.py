@@ -4,7 +4,7 @@ import logging
 
 import chess
 from chess.engine import UciProtocol
-import docker
+import docker  # type: ignore
 
 from chessnet.storage import Engine
 

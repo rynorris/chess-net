@@ -8,5 +8,5 @@ pytest ~= 6.2.4
 pytest-asyncio ~= 0.15.1
 quart ~= 0.14.1
 quart-schema ~= 0.7.0
-sqlalchemy ~= 1.4.15
+sqlalchemy[mypy] ~= 1.4.15
 

@@ -4,8 +4,9 @@ import functools
 import logging
 import os
 import time
+from typing import NoReturn
 
-import boto3
+import boto3  # type: ignore
 import chess
 
 from chessnet.storage import Engine
@@ -98,7 +99,7 @@ class FargateEngineManager():
         return running_engine
 
     @run_in_executor
-    def stop_engine(self, running_engine: RunningEngine, reason: str):
+    def stop_engine(self, running_engine: RunningEngine, reason: str) -> NoReturn:  # type: ignore[misc]
         self.client.stop_task(
             cluster=self.cluster,
             task=running_engine.task_arn,

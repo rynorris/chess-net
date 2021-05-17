@@ -1,18 +1,19 @@
 import asyncio
-from typing import List
+from typing import Any, Dict, List, NoReturn
 
 from sqlalchemy import (
     delete, insert, select, update,
     ForeignKey, Index, MetaData, Table, Column,
     String, Integer,
 )
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.engine import Row
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 from chessnet.storage import Game, Engine, Move, Storage
 
 
 class SqlStorage(Storage):
-    def __init__(self, db):
+    def __init__(self, db: AsyncEngine):
         self.db = db
         self.metadata = MetaData()
 
@@ -45,21 +46,19 @@ class SqlStorage(Storage):
             Column("uci", String, nullable=False),
             Column("timestamp", Integer, nullable=False),
 
-            Index("idx_engine_positions", "engine_id", "fen_before"),
+            Index("idx_engine_positions", "engine_id", "fen_before"),  # type: ignore
         )
-
 
     async def initialize(self):
         async with self.db.begin() as conn:
             await conn.run_sync(self.metadata.create_all)
-
 
     async def list_engines(self) -> List[Engine]:
         async with self.db.begin() as conn:
             result = await conn.stream(select(self.engines_table))
             return [self._load_engine(row) async for row in result]
 
-    async def store_engine(self, engine: Engine):
+    async def store_engine(self, engine: Engine) -> NoReturn:  # type: ignore[misc]
         async with self.db.begin() as conn:
             await conn.execute(insert(self.engines_table).values(**self._store_engine(engine)))
 
@@ -74,7 +73,7 @@ class SqlStorage(Storage):
             raise Exception("No engine with ID: {}", engine_id)
         return engines[0]
 
-    async def delete_engine(self, engine_id: str):
+    async def delete_engine(self, engine_id: str) -> NoReturn:  # type: ignore[misc]
         async with self.db.begin() as conn:
             await conn.execute(
                     delete(self.engines_table)
@@ -87,11 +86,11 @@ class SqlStorage(Storage):
                     .order_by(self.games_table.c.timestamp.desc()))
             return [self._load_game(row) async for row in result]
 
-    async def store_game(self, game: Game):
+    async def store_game(self, game: Game) -> NoReturn:  # type: ignore[misc]
         async with self.db.begin() as conn:
             await conn.execute(insert(self.games_table).values(**self._store_game(game)))
 
-    async def finish_game(self, game_id: str, outcome: str):
+    async def finish_game(self, game_id: str, outcome: str) -> NoReturn:  # type: ignore[misc]
         async with self.db.begin() as conn:
             await conn.execute(
                     update(self.games_table)
@@ -112,7 +111,7 @@ class SqlStorage(Storage):
                     .where(self.games_table.c.white == engine_id or self.games_table.c.black == engine_id))
             return [self._load_game(row) async for row in result]
 
-    async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str):
+    async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str) -> NoReturn:  # type: ignore[misc]
         async with self.db.begin() as conn:
             await conn.execute(
                     insert(self.moves_table)
@@ -126,7 +125,7 @@ class SqlStorage(Storage):
                     .order_by(self.moves_table.c.timestamp))
             return [self._load_move(row) async for row in result]
 
-    def _load_engine(self, row):
+    def _load_engine(self, row: Row) -> Engine:
         return Engine(
             family=row.family,
             variant=row.variant,
@@ -134,7 +133,7 @@ class SqlStorage(Storage):
             image=row.image,
         )
 
-    def _store_engine(self, engine):
+    def _store_engine(self, engine: Engine) -> Dict[str, Any]:
         return {
             "engine_id": engine.id(),
             "family": engine.family,
@@ -143,7 +142,7 @@ class SqlStorage(Storage):
             "image": engine.image,
         }
 
-    def _load_game(self, row):
+    def _load_game(self, row: Row) -> Game:
         return Game(
             game_id=row.game_id,
             timestamp=row.timestamp,
@@ -152,7 +151,7 @@ class SqlStorage(Storage):
             outcome=row.outcome,
         )
 
-    def _store_game(self, game):
+    def _store_game(self, game: Game) -> Dict[str, Any]:
         return {
             "game_id": game.game_id,
             "timestamp": game.timestamp,
@@ -161,13 +160,13 @@ class SqlStorage(Storage):
             "outcome": game.outcome,
         }
 
-    def _load_move(self, row):
+    def _load_move(self, row: Row) -> Move:
         return Move(
             uci=row.uci,
             timestamp=row.timestamp,
         )
 
-    def _store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str):
+    def _store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str) -> Dict[str, Any]:
         return {
             "game_id": game_id,
             "uci": move.uci,
