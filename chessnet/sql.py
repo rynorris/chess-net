@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, NoReturn
+from typing import Any, Dict, List
 
 from sqlalchemy import (
     delete, insert, select, update,
@@ -49,7 +49,7 @@ class SqlStorage(Storage):
             Index("idx_engine_positions", "engine_id", "fen_before"),  # type: ignore
         )
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         async with self.db.begin() as conn:
             await conn.run_sync(self.metadata.create_all)
 
@@ -58,7 +58,7 @@ class SqlStorage(Storage):
             result = await conn.stream(select(self.engines_table))
             return [self._load_engine(row) async for row in result]
 
-    async def store_engine(self, engine: Engine) -> NoReturn:  # type: ignore[misc]
+    async def store_engine(self, engine: Engine) -> None:
         async with self.db.begin() as conn:
             await conn.execute(insert(self.engines_table).values(**self._store_engine(engine)))
 
@@ -73,7 +73,7 @@ class SqlStorage(Storage):
             raise Exception("No engine with ID: {}", engine_id)
         return engines[0]
 
-    async def delete_engine(self, engine_id: str) -> NoReturn:  # type: ignore[misc]
+    async def delete_engine(self, engine_id: str) -> None:
         async with self.db.begin() as conn:
             await conn.execute(
                     delete(self.engines_table)
@@ -86,11 +86,11 @@ class SqlStorage(Storage):
                     .order_by(self.games_table.c.timestamp.desc()))
             return [self._load_game(row) async for row in result]
 
-    async def store_game(self, game: Game) -> NoReturn:  # type: ignore[misc]
+    async def store_game(self, game: Game) -> None:
         async with self.db.begin() as conn:
             await conn.execute(insert(self.games_table).values(**self._store_game(game)))
 
-    async def finish_game(self, game_id: str, outcome: str) -> NoReturn:  # type: ignore[misc]
+    async def finish_game(self, game_id: str, outcome: str) -> None:
         async with self.db.begin() as conn:
             await conn.execute(
                     update(self.games_table)
@@ -111,7 +111,7 @@ class SqlStorage(Storage):
                     .where(self.games_table.c.white == engine_id or self.games_table.c.black == engine_id))
             return [self._load_game(row) async for row in result]
 
-    async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str) -> NoReturn:  # type: ignore[misc]
+    async def store_move(self, game_id: str, move: Move, fen_before: str, engine_id: str) -> None:
         async with self.db.begin() as conn:
             await conn.execute(
                     insert(self.moves_table)

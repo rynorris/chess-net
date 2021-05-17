@@ -26,15 +26,16 @@ async def play_game(broker: Broker, game_id: str, white: EngineRunner, black: En
             res = await white.play(board, chess.engine.Limit(time=0.1))
             log.info(f"Got move: {res.move}")
 
-            broker.publish(game_id, Events.make_move(
-                game_id,
-                Move(res.move.uci(), 0),
-                board.fen(),
-                white.engine().id(),
-            ))
+            if res.move is not None:
+                broker.publish(game_id, Events.make_move(
+                    game_id,
+                    Move(res.move.uci(), 0),
+                    board.fen(),
+                    white.engine().id(),
+                ))
 
-            board.push(res.move)
-            log.info(board)
+                board.push(res.move)
+                log.info("\n" + str(board))
 
             outcome = board.outcome()
             if outcome is not None:
@@ -45,14 +46,15 @@ async def play_game(broker: Broker, game_id: str, white: EngineRunner, black: En
             res = await black.play(board, chess.engine.Limit(time=0.1))
             log.info(f"Got move: {res.move}")
 
-            broker.publish(game_id, Events.make_move(
-                game_id,
-                Move(res.move.uci(), 0),
-                board.fen(),
-                white.engine().id(),
-            ))
-            board.push(res.move)
-            log.info("\n" + str(board))
+            if res.move is not None:
+                broker.publish(game_id, Events.make_move(
+                    game_id,
+                    Move(res.move.uci(), 0),
+                    board.fen(),
+                    white.engine().id(),
+                ))
+                board.push(res.move)
+                log.info("\n" + str(board))
 
             outcome = board.outcome()
             if outcome is not None:

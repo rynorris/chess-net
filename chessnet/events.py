@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 from enum import Enum
-from typing import Literal, NoReturn, Union
+from typing import Dict, Literal, Union
 import uuid
 
 from pydantic.dataclasses import dataclass
@@ -59,7 +59,7 @@ class Events:
         return MakeMoveEvent(EventType.MAKE_MOVE, game_id, move, fen_before, engine_id)
 
 
-EventCallback = Callable[[Event], Awaitable[NoReturn]]
+EventCallback = Callable[[Event], Awaitable[None]]
 
 
 class Subscription:
@@ -68,18 +68,18 @@ class Subscription:
         self.typs = set(typs)
         self.callback = callback
 
-    async def accept(self, event: Event) -> NoReturn:  # type: ignore[misc]
+    async def accept(self, event: Event) -> None:
         if event.typ in self.typs:
             await self.callback(event)
 
 
 class Broker:
-    def __init__(self):
+    def __init__(self) -> None:
         # Subscriptions per channel.
         # Special key "*" for all.
-        self.subscriptions = {}
+        self.subscriptions: Dict[str, Dict[str, Subscription]] = {}
 
-    def publish(self, channel: str, event: Event) -> NoReturn:  # type: ignore[misc]
+    def publish(self, channel: str, event: Event) -> None:
         for sub in self.subscriptions.get(channel, {}).values():
             asyncio.create_task(sub.accept(event))
 
@@ -95,7 +95,7 @@ class Broker:
         self.subscriptions[channel][handle] = sub
         return handle
 
-    def unsubscribe(self, handle: str) -> NoReturn:  # type: ignore[misc]
+    def unsubscribe(self, handle: str) -> None:
         channels = list(self.subscriptions.keys())
         for channel in channels:
             if handle in self.subscriptions[channel]:

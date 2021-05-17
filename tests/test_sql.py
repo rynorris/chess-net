@@ -2,7 +2,7 @@ import pytest
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from chessnet.storage import Engine, Game, Move
+from chessnet.storage import Engine, Game, Move, Storage
 from chessnet.sql import SqlStorage
 
 stockfish = Engine("stockfish", "main", "11", "andrijdavid/stockfish:11")
@@ -17,7 +17,7 @@ move_2 = Move("e7e5", 102)
 
 
 @pytest.fixture
-async def storage():
+async def storage() -> Storage:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=True, future=True)
     storage = SqlStorage(engine)
     await storage.initialize()
@@ -25,7 +25,7 @@ async def storage():
 
 
 @pytest.mark.asyncio
-async def test_engines(storage):
+async def test_engines(storage: Storage) -> None:
     engines = await storage.list_engines()
     assert engines == []
 
@@ -46,7 +46,7 @@ async def test_engines(storage):
 
 
 @pytest.mark.asyncio
-async def test_games(storage):
+async def test_games(storage: Storage) -> None:
     await storage.store_engine(stockfish)
     await storage.store_engine(alphazero)
 
@@ -61,7 +61,7 @@ async def test_games(storage):
 
 
 @pytest.mark.asyncio
-async def test_moves(storage):
+async def test_moves(storage: Storage) -> None:
     await storage.store_engine(stockfish)
     await storage.store_engine(alphazero)
     await storage.store_game(game_1)
