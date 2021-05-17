@@ -54,7 +54,7 @@ class SqlStorage(Storage):
             await conn.run_sync(self.metadata.create_all)
 
 
-    async def list_engines(self) -> List[int]:
+    async def list_engines(self) -> List[Engine]:
         async with self.db.begin() as conn:
             result = await conn.stream(select(self.engines_table))
             return [self._load_engine(row) async for row in result]
