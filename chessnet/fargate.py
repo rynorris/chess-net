@@ -1,11 +1,16 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 import functools
 import logging
 import os
 import time
+from typing import cast, Any, Dict, Optional, TypeVar
 
 import boto3
+from mypy_boto3_ec2.client import EC2Client
+from mypy_boto3_ecs.client import ECSClient
+from mypy_boto3_ecs.type_defs import AttachmentTypeDef
 import chess
 
 from chessnet.storage import Engine
@@ -23,9 +28,11 @@ CHESS_ENGINE_SECURITY_GROUP = "sg-09312f6d53bcafa4f"
 log = logging.getLogger(__name__)
 
 
-def run_in_executor(f):
+ReturnType = TypeVar("ReturnType")
+
+def run_in_executor(f: Callable[..., ReturnType]) -> Callable[..., Awaitable[ReturnType]]:
     @functools.wraps(f)
-    async def _async_f(*args, **kwargs):
+    async def _async_f(*args: Any, **kwargs: Any) -> ReturnType:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: f(*args, **kwargs))
     return _async_f
@@ -39,13 +46,13 @@ class RunningEngine:
 
 
 class FargateRunner(EngineRunner):
-    def __init__(self, manager, engine):
+    def __init__(self, manager: FargateEngineManager, engine: Engine):
         self.manager = manager
         self._engine = engine
-        self.protocol = None
-        self.running_engine = None
+        self.protocol: Optional[chess.engine.UciProtocol] = None
+        self.running_engine: Optional[RunningEngine] = None
 
-    async def run(self):
+    async def run(self) -> None:
         log.info("Starting container...")
         self.running_engine = await self.manager.run_engine(self._engine)
         try:
@@ -54,18 +61,20 @@ class FargateRunner(EngineRunner):
                     lambda: ProtocolAdapter(chess.engine.UciProtocol()),
                     host=self.running_engine.ip_addr,
                     port=self.running_engine.port)
-            self.protocol = adapter.protocol
+            self.protocol = cast(ProtocolAdapter, adapter).protocol
 
             log.info("Initializing engine...")
             await self.protocol.initialize()
-        except:
-            await self.shutdown()
+        except Exception as e:
+            await self.shutdown(f"Error during initialization: {type(e).__name__}: {e}")
             raise
 
-    async def play(self, board, limit):
+    async def play(self, board: chess.Board, limit: chess.engine.Limit) -> chess.engine.PlayResult:
+        if self.protocol is None:
+            raise Exception("Engine is not running")
         return await self.protocol.play(board, limit)
 
-    async def shutdown(self, reason):
+    async def shutdown(self, reason: str) -> None:
         await self.manager.stop_engine(self.running_engine, reason)
 
     def engine(self) -> Engine:
@@ -75,14 +84,14 @@ class FargateRunner(EngineRunner):
 class FargateEngineManager():
     TASK_DEF_VERSION = 2
 
-    def __init__(self, cluster):
-        self.client = boto3.client(
+    def __init__(self, cluster: str):
+        self.client: ECSClient = boto3.client(
             'ecs',
             region_name=AWS_REGION,
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
         )
-        self.ec2_client = boto3.client(
+        self.ec2_client: EC2Client = boto3.client(
             'ec2',
             region_name=AWS_REGION,
             aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -91,21 +100,21 @@ class FargateEngineManager():
         self.cluster = cluster
 
     @run_in_executor
-    def run_engine(self, engine):
+    def run_engine(self, engine: Engine) -> RunningEngine:
         task_def = self._get_or_create_task_definition(engine)
         task = self.client.run_task(**self._run_task_configuration(task_def))["tasks"][0]
         running_engine = self._wait_for_ready(task["taskArn"])
         return running_engine
 
     @run_in_executor
-    def stop_engine(self, running_engine: RunningEngine, reason: str):
+    def stop_engine(self, running_engine: RunningEngine, reason: str) -> None:
         self.client.stop_task(
             cluster=self.cluster,
             task=running_engine.task_arn,
             reason=reason,
         )
 
-    def _wait_for_ready(self, task_arn):
+    def _wait_for_ready(self, task_arn: str) -> RunningEngine:
         sleeps = [0, 5, 5, 10, 10, 30, 30, 60, 60]
         for sleep in sleeps:
             time.sleep(sleep)
@@ -138,7 +147,7 @@ class FargateEngineManager():
 
         raise Exception("Task took too long to start")
 
-    def _get_or_create_task_definition(self, engine):
+    def _get_or_create_task_definition(self, engine: Engine) -> str:
         task_name = self._safe_name(engine.id())
         try:
             description = self.client.describe_task_definition(taskDefinition=task_name, include=["TAGS"])
@@ -155,16 +164,16 @@ class FargateEngineManager():
         log.info(task_def)
         return task_def["family"]
 
-    def _safe_name(self, name):
+    def _safe_name(self, name: str) -> str:
         return name.replace("#", "_")
 
-    def _eni_detail(self, eni, name):
+    def _eni_detail(self, eni: AttachmentTypeDef, name: str) -> Any:
         values = [d["value"] for d in eni["details"] if d["name"] == name]
         if len(values) == 0:
             return None
         return values[0]
 
-    def _task_definition(self, engine):
+    def _task_definition(self, engine: Engine) -> Dict[str, Any]:
         return {
             "family": self._safe_name(engine.id()),
             "networkMode": "awsvpc",
@@ -186,7 +195,7 @@ class FargateEngineManager():
             "tags": [self._version_tag()],
         }
 
-    def _run_task_configuration(self, task_def):
+    def _run_task_configuration(self, task_def: str) -> Dict[str, Any]:
         return {
             "cluster": self.cluster,
             "taskDefinition": task_def,
@@ -205,7 +214,7 @@ class FargateEngineManager():
             },
         }
 
-    def _version_tag(self):
+    def _version_tag(self) -> Dict[str, str]:
         return {
             "key": "task_definition_version",
             "value": f"v{self.TASK_DEF_VERSION}",
