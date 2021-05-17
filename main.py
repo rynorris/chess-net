@@ -7,13 +7,15 @@ import chess.engine
 
 from chessnet.fargate import FargateEngineManager, FargateRunner
 from chessnet.game import play_game
-from chessnet.storage import Engine, FileStorage
+from chessnet.storage import Engine
+from chessnet.sql import SqlStorage
 
 log = logging.getLogger(__name__)
 
 
 async def main():
-    storage = FileStorage("./data.pickle")
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False, future=True)
+    storage = SqlStorage(engine)
 
     # storage.store_engine(Engine("a", "stockfish", "master", "11", None, "andrijdavid/stockfish:11"))
     # storage.store_engine(Engine("b", "stockfish", "master", "12", "a", "andrijdavid/stockfish:12"))

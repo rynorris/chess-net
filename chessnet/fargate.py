@@ -8,8 +8,8 @@ import time
 import boto3
 import chess
 
+from chessnet.storage import Engine
 from chessnet.runner import EngineRunner, ProtocolAdapter, TransportAdapter
-from chessnet.storage import FileStorage
 
 
 AWS_REGION = os.getenv("AWS_REGION")
@@ -41,12 +41,13 @@ class RunningEngine:
 class FargateRunner(EngineRunner):
     def __init__(self, manager, engine):
         self.manager = manager
-        self.engine = engine
+        self._engine = engine
         self.protocol = None
+        self.running_engine = None
 
     async def run(self):
         log.info("Starting container...")
-        self.running_engine = await self.manager.run_engine(self.engine)
+        self.running_engine = await self.manager.run_engine(self._engine)
         try:
             log.info("Establishing connection...")
             _, adapter = await asyncio.get_running_loop().create_connection(
@@ -64,8 +65,11 @@ class FargateRunner(EngineRunner):
     async def play(self, board, limit):
         return await self.protocol.play(board, limit)
 
-    async def shutdown(self):
-        await self.manager.stop_engine(self.running_engine)
+    async def shutdown(self, reason):
+        await self.manager.stop_engine(self.running_engine, reason)
+
+    def engine(self) -> Engine:
+        return self._engine
 
 
 class FargateEngineManager():
@@ -94,11 +98,11 @@ class FargateEngineManager():
         return running_engine
 
     @run_in_executor
-    def stop_engine(self, running_engine: RunningEngine):
+    def stop_engine(self, running_engine: RunningEngine, reason: str):
         self.client.stop_task(
             cluster=self.cluster,
             task=running_engine.task_arn,
-            reason="Match is over",
+            reason=reason,
         )
 
     def _wait_for_ready(self, task_arn):
@@ -206,17 +210,4 @@ class FargateEngineManager():
             "key": "task_definition_version",
             "value": f"v{self.TASK_DEF_VERSION}",
         }
-
-
-async def main():
-    storage = FileStorage("./data.pickle")
-    manager = FargateEngineManager("chess-net")
-    #log.info(manager.get_or_create_task_definition(storage.get_engine("stockfish#main#11")))
-    running_engine = await manager.run_engine(storage.get_engine("stockfish#main#11"))
-    log.info(running_engine)
-    await manager.stop_engine(running_engine)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
 

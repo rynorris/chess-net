@@ -14,12 +14,21 @@ log = logging.getLogger(__name__)
 
 class EngineRunner(ABC):
     @abstractmethod
-    def run():
+    def run(self):
         pass
 
     @abstractmethod
-    def shutdown():
+    async def play(self, board, limit):
         pass
+
+    @abstractmethod
+    def shutdown(self, reason):
+        pass
+
+    @abstractmethod
+    def engine(self) -> Engine:
+        pass
+
 
 class ProtocolAdapter(asyncio.Protocol):
     def __init__(self, protocol):
@@ -61,33 +70,36 @@ class TransportAdapter(asyncio.SubprocessTransport, asyncio.ReadTransport, async
     # control methods.
 
 class DockerFileRunner(EngineRunner):
-    def __init__(self, client, image, local_port):
+    def __init__(self, client, engine, local_port):
         self.client = client
-        self.image = image
+        self._engine = engine
+        self.image = engine.image
         self.local_port = local_port
         self.container = None
-        self.engine = None
+        self.protocol = None
 
     async def run(self):
         self.container = self.client.containers.run(self.image, detach=True, ports={"3333/tcp": self.local_port})
         try:
             log.info("Establishing connection...")
             _, adapter = await asyncio.get_running_loop().create_connection(lambda: ProtocolAdapter(chess.engine.UciProtocol()), host="localhost", port=self.local_port)
-            self.engine = adapter.protocol
+            self.protocol = adapter.protocol
 
             log.info("Initializing engine...")
-            await self.engine.initialize()
+            await self.protocol.initialize()
         except:
-            self.shutdown()
+            await self.shutdown()
             raise
 
     async def play(self, board, limit):
-        return await self.engine.play(board, limit)
+        return await self.protocol.play(board, limit)
 
-    def shutdown(self):
+    async def shutdown(self, reason):
         self.container.stop()
         self.container.remove()
         self.container = None
 
+    def engine(self):
+        return self._engine
 
 
